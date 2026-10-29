@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>1987 传达室 · 复古珠帘交互体验</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Noto Serif SC for retro 80s feel -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;700;900&family=Zhi+Mang+Xing&display=swap" rel="stylesheet">
+  <!-- MediaPipe Hands & Camera Utils -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+  <style>
+    /* 1987 复古氛围配色与墙面纹理 */
+    :root {
+      --wall-top: #e3ded2;       /* 上半墙 暖白斑驳乳胶漆 */
+      --wall-bottom: #738a7c;    /* 下半墙 莫兰迪/灰绿色胶漆墙裙 */
+      --wood-dark: #2a1a12;      /* 老旧黑褐色木框 */
+      --wood-light: #422d20;
+      --wall-inset-bg: #63776b;   /* 嵌进下半墙体内的沉降色 */
+      --retro-red: #a8322d;      /* 告示牌复古红 */
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'Noto Serif SC', serif;
+      user-select: none;
+      background-color: #1a1a1a;
+    }
+
+    /* 传达室双色墙体背景 */
+    .room-background {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      z-index: 1;
+    }
+
+    /* 上半墙：斑驳微颗粒墙面 */
+    .wall-top-section {
+      height: 40%;
+      background: var(--wall-top);
+      background-image: radial-gradient(rgba(0,0,0,0.06) 1px, transparent 0);
+      background-size: 12px 12px;
+      box-shadow: inset 0 -4px 12px rgba(0,0,0,0.15);
+    }
+
+    /* 分界黑铁条/水泥腰线 */
+    .wall-divider {
+      height: 10px;
+      background: #383e3a;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      z-index: 2;
+    }
+
+    /* 下半墙：经典80年代复古绿墙裙 */
+    .wall-bottom-section {
+      height: calc(60% - 10px);
+      background: var(--wall-bottom);
+      background-image: radial-gradient(rgba(0,0,0,0.08) 1px, transparent 0);
+      background-size: 16px 16px;
+    }
+
+    /* 黑色老水泥踢脚线 */
+    .wall-skirting {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 28px;
+      background: #1f2220;
+      border-top: 2px solid #121413;
+    }
+
+    /* 门框容器：深色老旧木门框 */
+    .door-frame {
+      position: absolute;
+      left: 4%;
+      top: 5%;
+      bottom: 28px;
+      width: 58%;
+      border: 18px solid var(--wood-dark);
+      border-bottom: none;
+      box-shadow: 
+        inset 0 0 15px rgba(0,0,0,0.8),
+        8px 8px 25px rgba(0,0,0,0.5);
+      background: rgba(10, 10, 10, 0.85);
+      z-index: 5;
+      overflow: hidden;
+      border-radius: 4px 4px 0 0;
+    }
+
+    /* 门框内背景摄像头画面的 Video 标签 */
+    #door-video-bg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1); /* 镜像画面，符合视觉反射习惯 */
+      z-index: 2;
+      opacity: 0.85; /* 略带复古暗色沉淀感 */
+      filter: contrast(1.05) saturate(0.9);
+    }
+
+    /* 门框顶部分栏横梁 */
+    .door-transom {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 48px;
+      border-bottom: 8px solid var(--wood-dark);
+      background: rgba(30, 25, 20, 0.9);
+      box-shadow: inset 0 -2px 8px rgba(0,0,0,0.6);
+      z-index: 12;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* 凹陷进入墙体风格的UI控制面板 (Carved/Inset Wall Panel) */
+    .inset-control-panel {
+      position: absolute;
+      right: 3%;
+      top: 5%;
+      bottom: 28px;
+      width: 33%;
+      background: var(--wall-inset-bg);
+      border: 3px solid #526359;
+      border-radius: 8px;
+      box-shadow: 
+        inset 4px 4px 10px rgba(0,0,0,0.4),
+        inset -2px -2px 6px rgba(255,255,255,0.1),
+        0 4px 15px rgba(0,0,0,0.25);
+      z-index: 10;
+      padding: 1.25rem;
+      overflow-y: auto;
+      color: #2b3830;
+    }
+
+    /* 沉降式的按键/输入框 */
+    .inset-input, .inset-btn, .inset-card {
+      background: #576a5e;
+      border: 2px solid #435349;
+      box-shadow: 
+        inset 2px 2px 5px rgba(0,0,0,0.35),
+        1px 1px 2px rgba(255,255,255,0.1);
+      color: #e8eee9;
+      border-radius: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .inset-btn:hover {
+      background: #62776a;
+      box-shadow: inset 1px 1px 3px rgba(0,0,0,0.2);
+    }
+
+    .inset-btn:active, .inset-btn.active {
+      background: #3e4e44;
+      box-shadow: inset 3px 3px 6px rgba(0,0,0,0.5);
+      color: #83e0a6;
+    }
+
+    /* 复古“传达室”招牌木牌 */
+    .signboard {
+      background: #f0ede4;
+      border: 3px solid var(--retro-red);
+      color: var(--retro-red);
+      font-family: 'Ma Shan Zheng', cursive;
+      letter-spacing: 4px;
+      box-shadow: 3px 3px 10px rgba(0,0,0,0.3);
+    }
+
+    /* 物理 Canvas Canvas */
+    #curtain-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 8;
+    }
+
+    /* 隐藏摄像头的原始 Video */
+    #webcam {
+      display: none;
+    }
+
+    /* 摄像头浮窗 (1987传达室监控/窗户意象) */
+    .webcam-monitor {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 110px;
+      height: 80px;
+      border: 3px solid #383e3a;
+      border-radius: 4px;
+      overflow: hidden;
+      background: #000;
+      box-shadow: inset 0 0 8px rgba(0,0,0,0.8);
+      z-index: 20;
+    }
+    
+    #monitor-canvas {
+      width: 100%;
+      height: 100%;
+      transform: scaleX(-1);
+    }
+
+    /* 全局老照片胶片感遮罩 */
+    .film-grain {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 30;
+      background: radial-gradient(circle, transparent 60%, rgba(0,0,0,0.4) 100%);
+      opacity: 0.7;
+    }
+
+    /* 滚动条细体化 */
+    .inset-control-panel::-webkit-scrollbar {
+      width: 6px;
+    }
+    .inset-control-panel::-webkit-scrollbar-thumb {
+      background: #435349;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 老照片暗角与胶片质感遮罩 -->
+  <div class="film-grain"></div>
+
+  <!-- 1987 传达室墙体背景 -->
+  <div class="room-background">
+    <div class="wall-top-section"></div>
+    <div class="wall-divider"></div>
+    <div class="wall-bottom-section"></div>
+    <div class="wall-skirting"></div>
+  </div>
+
+  <!-- 隐藏的摄像头 Element -->
+  <video id="webcam" playsinline></video>
+
+  <!-- 门框区域（珠帘垂挂的主舞台） -->
+  <div class="door-frame" id="door-container">
+    <div class="door-transom">
+      <span class="text-stone-400 text-xs tracking-widest font-mono opacity-60">1987 年传达室 · 玻璃亮窗</span>
+    </div>
+
+    <!-- 门框背景：实时摄像头画面 -->
+    <video id="door-video-bg" autoplay playsinline muted></video>
+
+    <!-- 珠帘物理渲染 Canvas (位于摄像头画面前方) -->
+    <canvas id="curtain-canvas"></canvas>
+  </div>
+
+  <!-- 右侧：凹陷刻入墙面风格的控制面板 (传达室值班登记台) -->
+  <div class="inset-control-panel">
+    
+    <!-- 传达室复古牌匾 -->
+    <div class="signboard py-1.5 px-4 rounded text-center mb-5 text-xl font-bold">
+      传 达 室 · 值 班 台
+    </div>
+
+    <!-- 手势监控预览小窗 -->
+    <div class="mb-5 p-2 inset-card flex items-center justify-between">
+      <div>
+        <div class="text-xs font-bold text-stone-200">手势监控与识别</div>
+        <div id="gesture-status" class="text-[11px] text-emerald-300 font-mono mt-0.5">初始化手势识别...</div>
+      </div>
+      <div class="webcam-monitor relative">
+        <canvas id="monitor-canvas"></canvas>
+      </div>
+    </div>
+
+    <!-- 预设模式切换选项 -->
+    <div class="mb-5">
+      <label class="block text-xs font-bold mb-2 text-stone-200 tracking-wider">选择珠帘模式 / 预设</label>
+      <div class="grid grid-cols-2 gap-2 text-xs">
+        <button onclick="applyPreset('classic')" id="btn-preset-classic" class="inset-btn active py-2 px-1 text-center">典雅经典圆珠</button>
+        <button onclick="applyPreset('text')" id="btn-preset-text" class="inset-btn py-2 px-1 text-center">文字串联珠帘</button>
+        <button onclick="applyPreset('diy')" id="btn-preset-diy" class="inset-btn py-2 px-1 text-center">DIY 串珠设计</button>
+        <button onclick="applyPreset('image')" id="btn-preset-image" class="inset-btn py-2 px-1 text-center">照片马赛克珠帘</button>
+      </div>
+    </div>
+
+    <!-- 1. 文字自定义输入模块 -->
+    <div id="section-text-input" class="mb-5 p-3 inset-card">
+      <label class="block text-xs font-bold mb-1.5 text-stone-200">自定义串联文字 (支持中英文)</label>
+      <input type="text" id="input-text-content" value="海盐1987传达室" placeholder="请输入想要串成的文字..." 
+             class="w-full inset-input p-2 text-xs outline-none focus:border-emerald-400 mb-2">
+      <div class="grid grid-cols-2 gap-2 text-xs">
+        <div>
+          <label class="block text-[11px] text-stone-300 mb-1">字体风格</label>
+          <select id="select-font-family" class="w-full inset-input p-1.5 text-xs outline-none">
+            <option value="'Noto Serif SC', serif">宋体/楷印体</option>
+            <option value="'Ma Shan Zheng', cursive">马山正楷</option>
+            <option value="'Zhi Mang Xing', cursive">狂草书法体</option>
+            <option value="system-ui, sans-serif">现代无衬线</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[11px] text-stone-300 mb-1">字号大小</label>
+          <input type="range" id="slider-font-size" min="14" max="32" value="20" class="w-full accent-emerald-600">
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. 图案与形状选择 (针对非纯文字模式) -->
+    <div id="section-shape-controls" class="mb-5 p-3 inset-card">
+      <label class="block text-xs font-bold mb-2 text-stone-200">珠子造型与表面质感</label>
+      <div class="grid grid-cols-4 gap-1.5 text-xs mb-3">
+        <button onclick="setShape('circle')" id="shape-circle" class="inset-btn active py-1 text-center">圆形</button>
+        <button onclick="setShape('triangle')" id="shape-triangle" class="inset-btn py-1 text-center">三角</button>
+        <button onclick="setShape('star')" id="shape-star" class="inset-btn py-1 text-center">星星</button>
+        <button onclick="setShape('heart')" id="shape-heart" class="inset-btn py-1 text-center">爱心</button>
+      </div>
+      <div class="grid grid-cols-3 gap-1.5 text-xs">
+        <button onclick="setPattern('solid')" id="pat-solid" class="inset-btn active py-1 text-center">实色纯净</button>
+        <button onclick="setPattern('stripe')" id="pat-stripe" class="inset-btn py-1 text-center">条纹纹理</button>
+        <button onclick="setPattern('dot')" id="pat-dot" class="inset-btn py-1 text-center">波点设计</button>
+      </div>
+    </div>
+
+    <!-- 3. DIY 串珠设计台 -->
+    <div id="section-diy-controls" class="mb-5 p-3 inset-card hidden">
+      <label class="block text-xs font-bold mb-2 text-stone-200">DIY 串珠设计序列</label>
+      <div class="flex items-center gap-2 mb-2">
+        <button onclick="addDiyBead('circle', '#e2b36e')" class="inset-btn px-2 py-1 text-xs">+ 金圆珠</button>
+        <button onclick="addDiyBead('heart', '#d65a5a')" class="inset-btn px-2 py-1 text-xs">+ 红心珠</button>
+        <button onclick="addDiyBead('star', '#5ad6c2')" class="inset-btn px-2 py-1 text-xs">+ 蓝星珠</button>
+        <button onclick="clearDiySequence()" class="inset-btn px-2 py-1 text-xs text-rose-300">清空</button>
+      </div>
+      <div id="diy-sequence-preview" class="p-2 inset-input min-h-[36px] flex flex-wrap gap-1 items-center text-xs">
+        <!-- 动态串珠序列预览 -->
+      </div>
+    </div>
+
+    <!-- 4. 图片上传转马赛克珠帘 -->
+    <div id="section-image-controls" class="mb-5 p-3 inset-card hidden">
+      <label class="block text-xs font-bold mb-1.5 text-stone-200">上传本地图像 (转马赛克珠帘)</label>
+      <input type="file" id="file-image-upload" accept="image/*" class="text-xs text-stone-300 w-full mb-2">
+      <p class="text-[11px] text-stone-400">选择照片后，色彩将精确映射到帘子的颗颗珠子上。</p>
+    </div>
+
+    <!-- 5. 复古束帘绑带道具选择 -->
+    <div class="mb-5 p-3 inset-card">
+      <label class="block text-xs font-bold mb-2 text-stone-200">复古绑带系帘道具 (五指握紧/束帘)</label>
+      <div class="grid grid-cols-3 gap-2 text-xs">
+        <button onclick="setTieStyle('ribbon')" id="tie-ribbon" class="inset-btn active py-1.5 text-center">红丝带</button>
+        <button onclick="setTieStyle('rope')" id="tie-rope" class="inset-btn py-1.5 text-center">粗麻绳</button>
+        <button onclick="setTieStyle('brass')" id="tie-brass" class="inset-btn py-1.5 text-center">黄铜扣</button>
+      </div>
+    </div>
+
+    <!-- 6. 参数调节 sliders -->
+    <div class="p-3 inset-card space-y-3 text-xs">
+      <div>
+        <div class="flex justify-between text-stone-200 mb-1">
+          <span>珠链间距密度</span>
+          <span id="val-spacing" class="font-mono text-emerald-300">22px</span>
+        </div>
+        <input type="range" id="slider-spacing" min="14" max="45" value="22" class="w-full accent-emerald-600">
+      </div>
+
+      <div>
+        <div class="flex justify-between text-stone-200 mb-1">
+          <span>珠子/节点大小</span>
+          <span id="val-bead-size" class="font-mono text-emerald-300">10px</span>
+        </div>
+        <input type="range" id="slider-bead-size" min="6" max="22" value="10" class="w-full accent-emerald-600">
+      </div>
+
+      <div>
+        <div class="flex justify-between text-stone-200 mb-1">
+          <span>珠链垂挂长度</span>
+          <span id="val-length" class="font-mono text-emerald-300">85%</span>
+        </div>
+        <input type="range" id="slider-length" min="40" max="98" value="85" class="w-full accent-emerald-600">
+      </div>
+
+      <!-- 挂线显示与色彩选项 -->
+      <div class="pt-2 border-t border-stone-600/50 flex items-center justify-between">
+        <label class="text-stone-200 flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" id="toggle-hide-line" class="accent-emerald-600 rounded">
+          <span>隐藏挂线 (悬浮珠串)</span>
+        </label>
+        <div class="flex items-center gap-1">
+          <span class="text-[11px] text-stone-300">珠色</span>
+          <input type="color" id="picker-bead-color" value="#d4af37" class="w-6 h-6 rounded bg-transparent cursor-pointer border-0">
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部贴心操作提示 -->
+    <div class="mt-4 text-center text-[11px] text-stone-400 font-mono">
+      提示：手在镜头前拨动即可推开珠帘；五指并拢握紧可束起帘子。没有摄像头时可按住鼠标左键推拨。
+    </div>
+
+  </div>
+
+  <!-- JavaScript 交互与物理引擎逻辑 -->
+  <script>
+    // 全局状态 State
+    const state = {
+      preset: 'classic',      // 'classic', 'text', 'diy', 'image'
+      shape: 'circle',       // 'circle', 'triangle', 'star', 'heart'
+      pattern: 'solid',      // 'solid', 'stripe', 'dot'
+      tieStyle: 'ribbon',    // 'ribbon', 'rope', 'brass'
+      
+      textContent: '海盐1987传达室',
+      fontFamily: "'Noto Serif SC', serif",
+      fontSize: 20,
+
+      spacing: 22,           // 链与链之间距离
+      beadSize: 10,          // 珠子半径
+      lengthPercent: 0.85,   // 垂挂长度占门框比例
+      
+      hideLine: false,
+      beadColor: '#d4af37',
+      lineColor: '#6e5a44',
+
+      diySequence: [
+        { shape: 'circle', color: '#e2b36e' },
+        { shape: 'heart', color: '#d65a5a' },
+        { shape: 'star', color: '#5ad6c2' }
+      ],
+      imageData: null,
+
+      // 物理引擎参数
+      gravity: 0.35,
+      friction: 0.985,
+      stiffness: 0.85,
+
+      // 手势状态
+      handPos: null,          // { x, y }
+      prevHandPos: null,      // { x, y }
+      handVelocity: { x: 0, y: 0 },
+      isGathered: false,      // 五指束帘
+      mousePos: null,
+      prevMousePos: null,
+      mouseVelocity: { x: 0, y: 0 },
+      isMouseDown: false
+    };
+
+    // 结构定义：珠链 Node 节点与 Rope 绳子
+    let chains = [];
+    let canvas, ctx, doorFrame;
+    let width = 0, height = 0;
+
+    class Node {
+      constructor(x, y, isFixed = false) {
+        this.x = x;
+        this.y = y;
+        this.oldX = x;
+        this.oldY = y;
+        this.isFixed = isFixed;
+        this.char = '';
+        this.color = state.beadColor;
+        this.shape = state.shape;
+        this.radius = state.beadSize;
+      }
+
+      update() {
+        if (this.isFixed) return;
+        const vx = (this.x - this.oldX) * state.friction;
+        const vy = (this.y - this.oldY) * state.friction;
+        this.oldX = this.x;
+        this.oldY = this.y;
+        this.x += vx;
+        this.y += vy + state.gravity;
+      }
+    }
+
+    class Link {
+      constructor(n1, n2, distance) {
+        this.n1 = n1;
+        this.n2 = n2;
+        this.distance = distance;
+      }
+
+      resolve() {
+        const dx = this.n2.x - this.n1.x;
+        const dy = this.n2.y - this.n1.y;
+        const dist = Math.hypot(dx, dy) || 0.001;
+        const diff = (dist - this.distance) / dist * state.stiffness;
+
+        if (!this.n1.isFixed) {
+          this.n1.x += dx * diff * 0.5;
+          this.n1.y += dy * diff * 0.5;
+        }
+        if (!this.n2.isFixed) {
+          this.n2.x -= dx * diff * 0.5;
+          this.n2.y -= dy * diff * 0.5;
+        }
+      }
+    }
+
+    // 初始化/重建珠帘物理模型
+    function initChains() {
+      if (!canvas) return;
+      chains = [];
+      
+      const numChains = Math.max(6, Math.floor(width / state.spacing));
+      const chainHeight = height * state.lengthPercent;
+      const nodesPerChain = Math.max(8, Math.floor(chainHeight / (state.beadSize * 2.2)));
+      const segDistance = chainHeight / nodesPerChain;
+
+      const textChars = state.textContent.split('');
+      let charIdx = 0;
+
+      for (let c = 0; c < numChains; c++) {
+        const startX = (c + 0.5) * (width / numChains);
+        const nodes = [];
+        const links = [];
+
+        for (let n = 0; n < nodesPerChain; n++) {
+          const isFixed = (n === 0);
+          const node = new Node(startX, 48 + n * segDistance, isFixed);
+          node.radius = state.beadSize;
+
+          // 赋予属性（经典 / 文字 / DIY / 马赛克）
+          if (state.preset === 'text') {
+            node.char = textChars[charIdx % textChars.length];
+            charIdx++;
+            node.color = state.beadColor;
+          } else if (state.preset === 'diy' && state.diySequence.length > 0) {
+            const item = state.diySequence[n % state.diySequence.length];
+            node.shape = item.shape;
+            node.color = item.color;
+          } else if (state.preset === 'image' && state.imageData) {
+            const imgCol = Math.floor((c / numChains) * state.imageData.cols);
+            const imgRow = Math.floor((n / nodesPerChain) * state.imageData.rows);
+            const pixelIdx = (imgRow * state.imageData.cols + imgCol) * 4;
+            const r = state.imageData.data[pixelIdx];
+            const g = state.imageData.data[pixelIdx + 1];
+            const b = state.imageData.data[pixelIdx + 2];
+            node.color = `rgb(${r},${g},${b})`;
+          } else {
+            node.color = state.beadColor;
+            node.shape = state.shape;
+          }
+
+          nodes.push(node);
+
+          if (n > 0) {
+            links.push(new Link(nodes[n - 1], node, segDistance));
+          }
+        }
+        chains.push({ nodes, links });
+      }
+    }
+
+    // Canvas 渲染循环
+    function render() {
+      ctx.clearRect(0, 0, width, height);
+
+      // 1. 物理求解
+      chains.forEach(chain => {
+        chain.nodes.forEach(n => n.update());
+        for (let iter = 0; iter < 4; iter++) {
+          chain.links.forEach(l => l.resolve());
+        }
+      });
+
+      // 2. 交互判定 (手势 / 鼠标) - 【重点修正：让施加给节点的冲量方向与手的运动速度完全一致】
+      let activeInteraction = null;
+      if (state.handPos) {
+        activeInteraction = {
+          x: state.handPos.x,
+          y: state.handPos.y,
+          vx: state.handVelocity.x,
+          vy: state.handVelocity.y,
+          isGather: state.isGathered
+        };
+      } else if (state.isMouseDown && state.mousePos) {
+        activeInteraction = {
+          x: state.mousePos.x,
+          y: state.mousePos.y,
+          vx: state.mouseVelocity.x,
+          vy: state.mouseVelocity.y,
+          isGather: false
+        };
+      }
+
+      if (activeInteraction) {
+        const pushRadius = activeInteraction.isGather ? 180 : 75;
+        
+        chains.forEach(chain => {
+          chain.nodes.forEach(node => {
+            if (node.isFixed) return;
+            const dx = node.x - activeInteraction.x;
+            const dy = node.y - activeInteraction.y;
+            const dist = Math.hypot(dx, dy);
+
+            if (dist < pushRadius) {
+              if (activeInteraction.isGather) {
+                // 五指束帘：拉向掌心并加上绑带约束
+                node.x += (activeInteraction.x - node.x) * 0.12;
+                node.y += (activeInteraction.y - node.y) * 0.12;
+              } else {
+                // 拨动珠帘：【修正力学方向】直接赋予与手完全同向的推进速度
+                const handSpeed = Math.hypot(activeInteraction.vx, activeInteraction.vy);
+                const pushFactor = Math.max(0.6, (1 - dist / pushRadius) * 1.8);
+
+                if (handSpeed > 0.5) {
+                  // 手移动时：珠帘沿着手的速度方向 (vx, vy) 飘动
+                  node.x += activeInteraction.vx * pushFactor;
+                  node.y += activeInteraction.vy * pushFactor * 0.5;
+                } else {
+                  // 手相对静止时：轻微推开避让
+                  const angle = Math.atan2(dy, dx);
+                  node.x += Math.cos(angle) * 3;
+                  node.y += Math.sin(angle) * 3;
+                }
+              }
+            }
+          });
+        });
+      }
+
+      // 3. 绘制挂线与珠子
+      chains.forEach(chain => {
+        // 绘制挂线
+        if (!state.hideLine) {
+          ctx.beginPath();
+          ctx.strokeStyle = state.lineColor;
+          ctx.lineWidth = 1.2;
+          chain.nodes.forEach((n, idx) => {
+            if (idx === 0) ctx.moveTo(n.x, n.y);
+            else ctx.lineTo(n.x, n.y);
+          });
+          ctx.stroke();
+        }
+
+        // 绘制节点/珠子/文字
+        chain.nodes.forEach((n, idx) => {
+          if (idx === 0) return; // 顶端固定锚点不绘制珠子
+
+          ctx.save();
+          ctx.translate(n.x, n.y);
+
+          if (state.preset === 'text') {
+            // 文字模式：直接渲染字词为珠子
+            ctx.font = `bold ${state.fontSize}px ${state.fontFamily}`;
+            ctx.fillStyle = n.color;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            // 文字微发光浮雕质感
+            ctx.shadowColor = 'rgba(0,0,0,0.6)';
+            ctx.shadowBlur = 4;
+            ctx.shadowOffsetX = 1;
+            ctx.shadowOffsetY = 2;
+            ctx.fillText(n.char, 0, 0);
+          } else {
+            // 图案/形状模式
+            drawBeadShape(ctx, n);
+          }
+
+          ctx.restore();
+        });
+      });
+
+      // 4. 绘制束帘绑带（如果在五指束帘状态下）
+      if (activeInteraction && activeInteraction.isGather) {
+        drawTieBand(ctx, activeInteraction.x, activeInteraction.y);
+      }
+
+      requestAnimationFrame(render);
+    }
+
+    // 绘制各种形状的珠子
+    function drawBeadShape(ctx, node) {
+      ctx.fillStyle = node.color;
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+      ctx.lineWidth = 1;
+
+      const r = node.radius;
+
+      ctx.beginPath();
+      if (node.shape === 'circle') {
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+      } else if (node.shape === 'triangle') {
+        ctx.moveTo(0, -r);
+        ctx.lineTo(r, r);
+        ctx.lineTo(-r, r);
+        ctx.closePath();
+      } else if (node.shape === 'star') {
+        for (let i = 0; i < 5; i++) {
+          ctx.lineTo(Math.cos((18 + i * 72) * Math.PI / 180) * r, -Math.sin((18 + i * 72) * Math.PI / 180) * r);
+          ctx.lineTo(Math.cos((54 + i * 72) * Math.PI / 180) * (r * 0.5), -Math.sin((54 + i * 72) * Math.PI / 180) * (r * 0.5));
+        }
+        ctx.closePath();
+      } else if (node.shape === 'heart') {
+        ctx.moveTo(0, r * 0.3);
+        ctx.bezierCurveTo(-r, -r * 0.6, -r * 0.5, -r, 0, -r * 0.4);
+        ctx.bezierCurveTo(r * 0.5, -r, r, -r * 0.6, 0, r * 0.3);
+      }
+
+      ctx.fill();
+      ctx.stroke();
+
+      // 表面纹理绘制 (条纹 / 波点)
+      if (state.pattern === 'stripe') {
+        ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(-r * 0.5, -r * 0.5);
+        ctx.lineTo(r * 0.5, r * 0.5);
+        ctx.stroke();
+      } else if (state.pattern === 'dot') {
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.beginPath();
+        ctx.arc(0, 0, Math.max(1.5, r * 0.25), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // 绘制复古绑带系帘道具
+    function drawTieBand(ctx, x, y) {
+      ctx.save();
+      ctx.translate(x, y);
+
+      if (state.tieStyle === 'ribbon') {
+        ctx.fillStyle = '#a8322d'; // 红丝带
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 36, 12, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillRect(-6, 0, 12, 30);
+      } else if (state.tieStyle === 'rope') {
+        ctx.strokeStyle = '#c2a678'; // 粗麻绳
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.arc(0, 0, 28, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (state.tieStyle === 'brass') {
+        ctx.fillStyle = '#d4af37'; // 黄铜金属扣
+        ctx.fillRect(-32, -10, 64, 20);
+        ctx.strokeStyle = '#8c701e';
+        ctx.strokeRect(-32, -10, 64, 20);
+      }
+
+      ctx.restore();
+    }
+
+    // DOM & 事件绑定
+    function initUI() {
+      doorFrame = document.getElementById('door-container');
+      canvas = document.getElementById('curtain-canvas');
+      ctx = canvas.getContext('2d');
+
+      function resize() {
+        width = doorFrame.clientWidth;
+        height = doorFrame.clientHeight;
+        canvas.width = width;
+        canvas.height = height;
+        initChains();
+      }
+      window.addEventListener('resize', resize);
+      resize();
+
+      // 滑块监听
+      document.getElementById('slider-spacing').addEventListener('input', (e) => {
+        state.spacing = parseInt(e.target.value);
+        document.getElementById('val-spacing').innerText = state.spacing + 'px';
+        initChains();
+      });
+
+      document.getElementById('slider-bead-size').addEventListener('input', (e) => {
+        state.beadSize = parseInt(e.target.value);
+        document.getElementById('val-bead-size').innerText = state.beadSize + 'px';
+        initChains();
+      });
+
+      document.getElementById('slider-length').addEventListener('input', (e) => {
+        state.lengthPercent = parseInt(e.target.value) / 100;
+        document.getElementById('val-length').innerText = e.target.value + '%';
+        initChains();
+      });
+
+      // 文本与字体监听
+      document.getElementById('input-text-content').addEventListener('input', (e) => {
+        state.textContent = e.target.value || '海盐1987';
+        if (state.preset === 'text') initChains();
+      });
+
+      document.getElementById('select-font-family').addEventListener('change', (e) => {
+        state.fontFamily = e.target.value;
+      });
+
+      document.getElementById('slider-font-size').addEventListener('input', (e) => {
+        state.fontSize = parseInt(e.target.value);
+      });
+
+      // 颜色与挂线显示
+      document.getElementById('picker-bead-color').addEventListener('input', (e) => {
+        state.beadColor = e.target.value;
+        initChains();
+      });
+
+      document.getElementById('toggle-hide-line').addEventListener('change', (e) => {
+        state.hideLine = e.target.checked;
+      });
+
+      // 鼠标拖拽退化交互 (Fallback)
+      canvas.addEventListener('mousedown', (e) => {
+        state.isMouseDown = true;
+        const rect = canvas.getBoundingClientRect();
+        state.mousePos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        state.prevMousePos = { ...state.mousePos };
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        const curX = e.clientX - rect.left;
+        const curY = e.clientY - rect.top;
+
+        if (state.prevMousePos) {
+          state.mouseVelocity = { x: curX - state.prevMousePos.x, y: curY - state.prevMousePos.y };
+        }
+        state.prevMousePos = state.mousePos ? { ...state.mousePos } : { x: curX, y: curY };
+        state.mousePos = { x: curX, y: curY };
+      });
+
+      window.addEventListener('mouseup', () => {
+        state.isMouseDown = false;
+        state.mousePos = null;
+      });
+    }
+
+    // 预设模式切换
+    window.applyPreset = function(presetName) {
+      state.preset = presetName;
+      ['classic', 'text', 'diy', 'image'].forEach(p => {
+        const btn = document.getElementById(`btn-preset-${p}`);
+        if (btn) btn.classList.toggle('active', p === presetName);
+      });
+
+      // 显隐相关控制面板
+      document.getElementById('section-text-input').style.display = (presetName === 'text') ? 'block' : 'none';
+      document.getElementById('section-shape-controls').style.display = (presetName === 'classic') ? 'block' : 'none';
+      document.getElementById('section-diy-controls').classList.toggle('hidden', presetName !== 'diy');
+      document.getElementById('section-image-controls').classList.toggle('hidden', presetName !== 'image');
+
+      initChains();
+    };
+
+    window.setShape = function(shape) {
+      state.shape = shape;
+      ['circle', 'triangle', 'star', 'heart'].forEach(s => {
+        const btn = document.getElementById(`shape-${s}`);
+        if (btn) btn.classList.toggle('active', s === shape);
+      });
+      initChains();
+    };
+
+    window.setPattern = function(pat) {
+      state.pattern = pat;
+      ['solid', 'stripe', 'dot'].forEach(p => {
+        const btn = document.getElementById(`pat-${p}`);
+        if (btn) btn.classList.toggle('active', p === pat);
+      });
+    };
+
+    window.setTieStyle = function(style) {
+      state.tieStyle = style;
+      ['ribbon', 'rope', 'brass'].forEach(t => {
+        const btn = document.getElementById(`tie-${t}`);
+        if (btn) btn.classList.toggle('active', t === style);
+      });
+    };
+
+    window.addDiyBead = function(shape, color) {
+      state.diySequence.push({ shape, color });
+      updateDiyPreview();
+      initChains();
+    };
+
+    window.clearDiySequence = function() {
+      state.diySequence = [];
+      updateDiyPreview();
+      initChains();
+    };
+
+    function updateDiyPreview() {
+      const container = document.getElementById('diy-sequence-preview');
+      container.innerHTML = state.diySequence.map(item => `
+        <span class="inline-block px-1.5 py-0.5 text-[10px] rounded border border-stone-600" style="background:${item.color}; color:#fff;">
+          ${item.shape}
+        </span>
+      `).join('');
+    }
+
+    // 图片上传处理
+    window.handleImageUpload = function(e) {
+      const file = e.target ? e.target.files[0] : null;
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        const img = new Image();
+        img.onload = function() {
+          const cvs = document.createElement('canvas');
+          const cctx = cvs.getContext('2d');
+          
+          const cols = Math.max(8, Math.floor(width / state.spacing));
+          const rows = Math.max(8, Math.floor((height * state.lengthPercent) / (state.beadSize * 2.2)));
+          
+          cvs.width = cols;
+          cvs.height = rows;
+          cctx.drawImage(img, 0, 0, cols, rows);
+
+          const imgData = cctx.getImageData(0, 0, cols, rows);
+          state.imageData = {
+            data: imgData.data,
+            cols: cols,
+            rows: rows
+          };
+
+          applyPreset('image');
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    };
+
+    // MediaPipe Hands 初始化与监控
+    function initMediaPipe() {
+      const videoElement = document.getElementById('webcam');
+      const doorVideoBg = document.getElementById('door-video-bg');
+      const monitorCanvas = document.getElementById('monitor-canvas');
+      const monitorCtx = monitorCanvas.getContext('2d');
+      const gestureStatus = document.getElementById('gesture-status');
+
+      // 将 MediaStream 绑定给门框内的背景 Video
+      navigator.mediaDevices?.getUserMedia({ video: { width: 1280, height: 720 } })
+        .then(stream => {
+          if (doorVideoBg) doorVideoBg.srcObject = stream;
+        })
+        .catch(err => {
+          console.warn('Door background camera view error:', err);
+        });
+
+      const hands = new Hands({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+      });
+
+      hands.setOptions({
+        maxNumHands: 1,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
+
+      hands.onResults((results) => {
+        // 渲染小窗监控画面
+        monitorCtx.save();
+        monitorCtx.clearRect(0, 0, monitorCanvas.width, monitorCanvas.height);
+        monitorCtx.drawImage(results.image, 0, 0, monitorCanvas.width, monitorCanvas.height);
+        monitorCtx.restore();
+
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+          const landmarks = results.multiHandLandmarks[0];
+          
+          // 食指尖节点 (Node 8) 作为物理推动核心
+          const indexTip = landmarks[8];
+          const canvasX = (1 - indexTip.x) * width; // 水平镜像
+          const canvasY = indexTip.y * height;
+
+          if (state.prevHandPos) {
+            state.handVelocity = {
+              x: canvasX - state.prevHandPos.x,
+              y: canvasY - state.prevHandPos.y
+            };
+          }
+          state.prevHandPos = state.handPos ? { ...state.handPos } : { x: canvasX, y: canvasY };
+          state.handPos = { x: canvasX, y: canvasY };
+
+          // 检测手势是否为五指握紧/束帘 (大拇指指尖4与小拇指指尖20距离)
+          const thumbTip = landmarks[4];
+          const pinkyTip = landmarks[20];
+          const handSpan = Math.hypot(thumbTip.x - pinkyTip.x, thumbTip.y - pinkyTip.y);
+
+          if (handSpan < 0.18) {
+            state.isGathered = true;
+            gestureStatus.innerText = '识别：五指束起帘子';
+            gestureStatus.style.color = '#f59e0b';
+          } else {
+            state.isGathered = false;
+            gestureStatus.innerText = '识别：手势顺畅拨动中';
+            gestureStatus.style.color = '#34d399';
+          }
+        } else {
+          state.handPos = null;
+          state.prevHandPos = null;
+          state.isGathered = false;
+          gestureStatus.innerText = '等待手势进入镜头...';
+          gestureStatus.style.color = '#a7f3d0';
+        }
+      });
+
+      const camera = new Camera(videoElement, {
+        onFrame: async () => {
+          await hands.send({ image: videoElement });
+        },
+        width: 320,
+        height: 240
+      });
+
+      camera.start().catch(err => {
+        gestureStatus.innerText = '未检测到摄像头，可鼠标互动';
+        console.warn('Camera error:', err);
+      });
+    }
+
+    // 页面加载入口
+    window.onload = function() {
+      initUI();
+      updateDiyPreview();
+
+      const fileInput = document.getElementById('file-image-upload');
+      if (fileInput) {
+        fileInput.addEventListener('change', window.handleImageUpload);
+      }
+
+      initMediaPipe();
+      requestAnimationFrame(render);
+    };
+  </script>
+</body>
+</html>
